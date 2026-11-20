@@ -1,5 +1,7 @@
 # Deploy and Host GitHub Actions Self-Hosted Runner with Railway
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/github-actions-self-hosted-runner-2338-u?referralCode=20H68q)
+
 A GitHub Actions self-hosted runner on Railway: it registers with your repository or organization, picks up jobs whose `runs-on` asks for it, and keeps its registration on a volume so restarts and redeploys need no new token. Ubuntu 24.04 with git, compilers, Python, jq and the GitHub CLI. Docker is not available.
 
 ## About Hosting GitHub Actions Self-Hosted Runner
