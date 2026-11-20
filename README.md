@@ -33,7 +33,7 @@ A self-hosted runner is GitHub's open-source `actions/runner` program. It opens 
 |---|---|---|---|
 | GitHub Runner | `actions/runner` 2.338.2 as user `runner`, started and supervised by `railway-runner` | `/data` (registration, runner name) | none (outbound only) |
 
-**Plan:** RAM_PLACEHOLDER
+**Plan:** Trial or higher for light jobs, Hobby for real builds. Measured on Railway: a few MB while waiting for configuration; a registered runner idles at roughly 0.1–0.2 GB, and jobs use what their builds need.
 
 **Setup**
 

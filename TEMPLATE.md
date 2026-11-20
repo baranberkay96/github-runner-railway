@@ -31,7 +31,7 @@ Required inputs: `GITHUB_URL` (prefilled with a `{owner}/{repo}` pattern the scr
 
 | Service | Idle RAM | Typical RAM | CPU |
 |---|---|---|---|
-| GitHub Runner | RAM_IDLE | 0.5–4 GB during builds | near 0 idle; builds use what they need |
+| GitHub Runner | ≈3 MB unconfigured (measured); ~0.1–0.2 GB registered (estimate) | 0.5–4 GB during builds | near 0 idle; builds use what they need |
 
 Estimated cost: about $1–3/month idle, plus the compute your jobs use. Minimum plan: Trial for light jobs; Hobby for real builds.
 
