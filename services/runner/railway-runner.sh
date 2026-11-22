@@ -75,10 +75,52 @@ idle_forever() {
 
 # ---------------------------------------------------------------- inputs
 
-parse_url() {
-  local url="${GITHUB_URL:-}"
+# Values pasted into the deploy form often carry spaces, no scheme, "www.",
+# or a deeper page of the repository (…/settings/actions/runners). They are
+# normalized here instead of leaving the runner idle.
+normalize_url() {
+  local url="$1"
+  url="$(printf '%s' "$url" | tr -d '[:space:]')"
+  url="${url#git+}"
+  case "$url" in
+    http://*) url="https://${url#http://}" ;;
+    https://*) ;;
+    ?*) url="https://${url}" ;;
+  esac
+  url="${url/#https:\/\/www./https://}"
+  url="${url%%\?*}"
+  url="${url%%#*}"
+  # Organization pages: https://github.com/organizations/{org}/… or /orgs/{org}/…
+  if [[ "$url" =~ ^(https://[^/]+)/(orgs|organizations)/([^/]+) ]]; then
+    url="${BASH_REMATCH[1]}/${BASH_REMATCH[3]}"
+  fi
+  # Keep https://host/owner[/repo]; drop anything after the repository.
+  if [[ "$url" =~ ^(https://[^/]+/[^/]+(/[^/]+)?) ]]; then
+    url="${BASH_REMATCH[1]}"
+  fi
   url="${url%/}"
-  url="${url%.git}"
+  printf '%s\n' "${url%.git}"
+}
+
+# GitHub's "New self-hosted runner" page shows
+#   ./config.sh --url https://github.com/{owner}/{repo} --token {TOKEN}
+# Users paste the whole line into either field: take the parts from it.
+unpack_pasted_command() {
+  local text="${RUNNER_TOKEN:-} ${GITHUB_URL:-}"
+  [[ "$text" == *--token* || "$text" == *--url* ]] || return 0
+  if [[ "$text" =~ --token[[:space:]=]+([A-Za-z0-9_]+) ]]; then
+    RUNNER_TOKEN="${BASH_REMATCH[1]}"
+    log "RUNNER_TOKEN contained a config.sh command: using the token from it."
+  fi
+  if [[ "$text" =~ --url[[:space:]=]+([^[:space:]]+) ]]; then
+    GITHUB_URL="${BASH_REMATCH[1]}"
+    log "A config.sh command was pasted: using the URL from it (${GITHUB_URL})."
+  fi
+}
+
+parse_url() {
+  local url
+  url="$(normalize_url "${GITHUB_URL:-}")"
   if [[ "$url" =~ ^https://([A-Za-z0-9.-]+(:[0-9]+)?)/([A-Za-z0-9]([A-Za-z0-9-]{0,38}))(/([A-Za-z0-9._-]{1,100}))?$ ]]; then
     HOST="${BASH_REMATCH[1]}"
     OWNER="${BASH_REMATCH[3]}"
@@ -103,6 +145,7 @@ parse_url() {
 
 token_kind() {
   local token="${RUNNER_TOKEN:-}"
+  token="$(printf '%s' "$token" | tr -d '[:space:]')"
   if [[ -z "$token" || "$token" == placeholder* || ${#token} -lt 20 || "$token" =~ [[:space:]] ]]; then
     printf 'none\n'
   elif [[ "$token" =~ ^(ghp_|github_pat_|gho_|ghu_|ghs_) ]]; then
@@ -308,6 +351,8 @@ main() {
     log "RUNNER_SUDO=false: jobs run without sudo."
   fi
 
+  unpack_pasted_command
+  RUNNER_TOKEN="$(printf '%s' "${RUNNER_TOKEN:-}" | tr -d '[:space:]')"
   if ! parse_url; then
     if is_configured; then
       log "WARNING: GITHUB_URL is not a valid https://{host}/{owner}[/{repo}] URL; using the stored registration for $(configured_url)."
