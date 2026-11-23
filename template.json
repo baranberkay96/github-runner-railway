@@ -1,5 +1,6 @@
 {
   "name": "GitHub Actions Self-Hosted Runner 2.338 (Ubuntu 24.04)",
+  "idSeed": "GitHub Actions Self-Hosted Runner 2.338 (Ubuntu 24.04) / 2026-11-23",
   "description": "Self-hosted GitHub Actions runner that re-registers itself. No Docker.",
   "category": "Other",
   "tags": [
