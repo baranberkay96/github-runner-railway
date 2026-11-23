@@ -11,7 +11,7 @@ Composer spec. `template.json` is the machine-readable copy.
 | Base | `ubuntu:noble-20261110.1@sha256:882e1e56…` |
 | Runner | actions/runner 2.338.2 release tarball, SHA-256 pinned (checked 2026-11-20); gh 2.105.0 |
 | Public domain | none (outbound connection to GitHub only) |
-| Healthcheck | none (no HTTP port); the process never exits on configuration errors |
+| Healthcheck | `/healthz` on `PORT` (8080, private, no public domain); always 200 while the supervisor runs, also before the runner is configured; the body is the state (starting, not-configured, registering, running, retrying). Jobs do not see `PORT`. |
 | Restart | ALWAYS |
 | Volume | `/data` (registration files, generated runner name) |
 

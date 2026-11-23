@@ -59,7 +59,9 @@ RUN curl -fsSL --retry 5 --retry-all-errors -o /tmp/gh.tar.gz \
  && gh --version | head -n 1
 
 COPY --chmod=0755 railway-runner.sh /usr/local/bin/railway-runner
-RUN bash -n /usr/local/bin/railway-runner
+COPY --chmod=0755 railway-healthz.py /usr/local/bin/railway-healthz
+RUN bash -n /usr/local/bin/railway-runner \
+ && python3 -m py_compile /usr/local/bin/railway-healthz
 
 WORKDIR /home/runner
 

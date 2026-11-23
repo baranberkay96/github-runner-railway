@@ -29,8 +29,8 @@
       },
       "startCommand": null,
       "preDeployCommand": null,
-      "healthcheckPath": null,
-      "healthcheckTimeout": null,
+      "healthcheckPath": "/healthz",
+      "healthcheckTimeout": 300,
       "restartPolicyType": "ALWAYS",
       "numReplicas": 1,
       "cronSchedule": null,
@@ -94,6 +94,11 @@
         "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
           "defaultValue": "60",
           "description": "Seconds between stop signal and kill on redeploy, so the runner can report a cancelled job to GitHub.",
+          "required": false
+        },
+        "PORT": {
+          "defaultValue": "8080",
+          "description": "Port of the internal /healthz endpoint for Railway's healthcheck. Jobs do not see it.",
           "required": false
         }
       }

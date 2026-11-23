@@ -16,6 +16,9 @@
 #  - Nothing ever fails the deploy: without a usable URL or token, or when
 #    GitHub refuses the registration, the service stays up, says why in the
 #    log every few minutes and retries with a growing delay.
+#  - railway-healthz answers Railway's healthcheck (GET /healthz on $PORT)
+#    with 200 and the current state. Jobs never see PORT, so a job's own
+#    server cannot collide with it by reading $PORT.
 set -Eeuo pipefail
 
 readonly RUNNER_USER="runner"
@@ -26,6 +29,8 @@ readonly STATE_DIR="/data/runner"
 readonly STATE_FILES=(.runner .credentials .credentials_rsaparams)
 readonly NAME_FILE="/data/runner-name"
 readonly RUN_LOG="/tmp/railway-runner-run.log"
+readonly STATE_FILE="/tmp/railway-runner-state"
+readonly HEALTHZ="/usr/local/bin/railway-healthz"
 readonly PLACEHOLDER_HINT="https://github.com/{owner}/{repo}"
 readonly MIN_RETRY_S=60
 readonly MAX_RETRY_S=3600
@@ -36,6 +41,10 @@ RETRY_S=$MIN_RETRY_S
 STOPPING=0
 
 log() { printf '[railway-runner] %s\n' "$*" >&2; }
+
+# One word for the healthcheck body: starting, not-configured, registering,
+# running, retrying.
+set_state() { printf '%s\n' "$1" > "$STATE_FILE" 2> /dev/null || true; }
 
 is_true() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
@@ -48,7 +57,7 @@ is_true() {
 # everything started as the runner user.
 as_runner() {
   setpriv --reuid="$RUNNER_USER" --regid="$RUNNER_USER" --init-groups \
-    env -u RUNNER_TOKEN -u GITHUB_TOKEN HOME="$RUNNER_HOME" USER="$RUNNER_USER" LOGNAME="$RUNNER_USER" "$@"
+    env -u RUNNER_TOKEN -u GITHUB_TOKEN -u PORT HOME="$RUNNER_HOME" USER="$RUNNER_USER" LOGNAME="$RUNNER_USER" "$@"
 }
 
 # Sleeps in short steps so SIGTERM is handled at once.
@@ -58,6 +67,7 @@ pause() {
 }
 
 backoff() {
+  set_state retrying
   log "Retrying in $(( RETRY_S / 60 )) min."
   pause "$RETRY_S"
   RETRY_S=$(( RETRY_S * 2 > MAX_RETRY_S ? MAX_RETRY_S : RETRY_S * 2 ))
@@ -66,6 +76,7 @@ backoff() {
 # Stays up without doing anything until the service is redeployed with
 # better variables; a crash loop would only fail the deploy.
 idle_forever() {
+  set_state not-configured
   while (( STOPPING == 0 )); do
     log "$*"
     pause "$IDLE_REMINDER_S"
@@ -267,6 +278,7 @@ configure() {
   if is_true "${RUNNER_DISABLE_UPDATE:-false}"; then
     args+=(--disableupdate)
   fi
+  set_state registering
   log "Registering runner '${name}' (labels: self-hosted, Linux, X64, ${labels}) with the ${SCOPE} ..."
   if (cd "$RUNNER_DIR" && as_runner ./config.sh "${args[@]}") 2>&1 | sed -u -E 's/--token [^ ]+/--token ***/g' | sed -u 's/^/[config] /' >&2 \
       && is_configured; then
@@ -282,10 +294,11 @@ configure() {
 
 run_listener() {
   local status=0
+  set_state running
   : > "$RUN_LOG"
   chown "$RUNNER_USER:$RUNNER_USER" "$RUN_LOG"
   (cd "$RUNNER_DIR" && exec setpriv --reuid="$RUNNER_USER" --regid="$RUNNER_USER" --init-groups \
-    env -u RUNNER_TOKEN -u GITHUB_TOKEN HOME="$RUNNER_HOME" USER="$RUNNER_USER" LOGNAME="$RUNNER_USER" \
+    env -u RUNNER_TOKEN -u GITHUB_TOKEN -u PORT HOME="$RUNNER_HOME" USER="$RUNNER_USER" LOGNAME="$RUNNER_USER" \
     RUNNER_MANUALLY_TRAP_SIG=1 ./run.sh) > >(tee -a "$RUN_LOG" >&2) 2>&1 &
   RUN_PID=$!
   wait "$RUN_PID" || status=$?
@@ -336,11 +349,26 @@ install_packages() {
   fi
 }
 
+# The healthcheck server runs unprivileged and is restarted if it ever dies.
+# It gets PORT (and nothing secret); the runner and the jobs do not.
+start_healthz() {
+  set_state starting
+  (
+    while :; do
+      setpriv --reuid="$RUNNER_USER" --regid="$RUNNER_USER" --init-groups \
+        env -i PATH=/usr/bin:/bin PORT="${PORT:-8080}" python3 -I "$HEALTHZ" || true
+      log "The healthcheck server stopped; starting it again in 5 s."
+      sleep 5
+    done
+  ) &
+}
+
 main() {
   trap on_signal TERM INT
   local kind status
 
   log "GitHub Actions runner $(cat "${RUNNER_DIR}/.version" 2> /dev/null || echo unknown) on $(. /etc/os-release && printf '%s' "$PRETTY_NAME"). No Docker: jobs with 'container:', 'services:' or Docker actions cannot run here."
+  start_healthz
   prepare_dirs
   restore_state
   if [[ -n "${APT_PACKAGES:-}" ]]; then

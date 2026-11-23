@@ -6,7 +6,7 @@ A GitHub Actions self-hosted runner on Railway: it registers with your repositor
 
 ## About Hosting GitHub Actions Self-Hosted Runner
 
-A self-hosted runner is GitHub's open-source `actions/runner` program. It opens an outbound HTTPS connection to GitHub and runs the jobs GitHub assigns to it, so it needs no public port. This community template builds runner 2.338.2 from the release tarball (SHA-256 checked) on a pinned Ubuntu 24.04 image. A start script registers the runner with a registration token or a personal access token, stores the registration on a Railway volume, restarts the runner when it stops, registers again when GitHub has deleted it (with a PAT), and stays up with a clear log message instead of crash-looping when the URL or token is missing or wrong.
+A self-hosted runner is GitHub's open-source `actions/runner` program. It opens an outbound HTTPS connection to GitHub and runs the jobs GitHub assigns to it, so it needs no public port. This community template builds runner 2.338.2 from the release tarball (SHA-256 checked) on a pinned Ubuntu 24.04 image. A start script registers the runner with a registration token or a personal access token, stores the registration on a Railway volume, restarts the runner when it stops, registers again when GitHub has deleted it (with a PAT), and stays up with a clear log message instead of crash-looping when the URL or token is missing or wrong. A small private `/healthz` endpoint (no public domain) answers Railway's healthcheck with the runner's state.
 
 ## Common Use Cases
 
